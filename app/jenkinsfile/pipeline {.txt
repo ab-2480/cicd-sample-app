@@ -1,0 +1,79 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
+        KUBE_CONFIG = credentials('kubeconfig')
+        IMAGE_NAME = "clairemary/sample-app"   // 👈 Replace with your Docker Hub username
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'main', credentialsId: 'github-ssh', url: 'git@github.com:ab-2480/cicd-sample-app.git'  // 👈 Replace with your GitHub username
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh 'docker build -t $IMAGE_NAME:$BUILD_NUMBER ./app'
+                }
+            }
+        }
+
+        stage('Push Image to Docker Hub') {
+            steps {
+                script {
+                    sh '''
+                        echo "$DOCKERHUB_CREDENTIALS_PSW" | docker login -u "$DOCKERHUB_CREDENTIALS_USR" --password-stdin
+                        docker push $IMAGE_NAME:$BUILD_NUMBER
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    writeFile file: 'k8s/deployment-updated.yaml', text: """
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-cicd-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: python-cicd-app
+  template:
+    metadata:
+      labels:
+        app: python-cicd-app
+    spec:
+      containers:
+      - name: python-cicd
+        image: $IMAGE_NAME:$BUILD_NUMBER
+        ports:
+        - containerPort: 5000
+"""
+                    withEnv(["KUBECONFIG=$KUBE_CONFIG"]) {
+                        sh '''
+                            kubectl apply -f k8s/service.yaml --namespace=dev
+                            kubectl apply -f k8s/deployment-updated.yaml --namespace=dev
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment Successful!"
+        }
+        failure {
+            echo "❌ Deployment Failed. Check logs."
+        }
+    }
+}
