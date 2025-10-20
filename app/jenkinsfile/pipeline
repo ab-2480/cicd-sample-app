@@ -4,13 +4,13 @@ pipeline {
     environment {
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-creds')
         KUBE_CONFIG = credentials('kubeconfig')
-        IMAGE_NAME = "clairemary/sample-app"   // 👈 Replace with your Docker Hub username
+        IMAGE_NAME = "clairemary/sample-app"   
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', credentialsId: 'github-ssh', url: 'git@github.com:ab-2480/cicd-sample-app.git'  // 👈 Replace with your GitHub username
+                git branch: 'main', credentialsId: 'github-ssh', url: 'git@github.com:ab-2480/cicd-sample-app.git'  
             }
         }
 
